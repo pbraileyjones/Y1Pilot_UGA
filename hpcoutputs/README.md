@@ -1,7 +1,5 @@
 
-This contains the majority of outputs generated through running both the 
-
-I have filtered some outputs that are innapropriate to store on github, but can be reproduced as part of the workflows provided.
+This contains the majority of outputs generated through running the workflows associated with this repository. I have removed some outputs that are innapropriate to store on github, but can be reproduced as part of the workflows provided.
 
 ### Amplicon Workflow
 
