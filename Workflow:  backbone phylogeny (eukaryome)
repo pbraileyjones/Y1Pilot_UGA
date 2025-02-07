@@ -1,0 +1,33 @@
+
+#-------------------------- Database download ---------------------------------
+ 
+# My script actually downloads all of them for all possible purposes, I'm using the LSU database GENERAL database
+# It also:
+#     - creates subset databases containing fungal only and glomeromycota only
+#     - reformats longread (SSU-ITS-LSU) QIIME2 database:
+#              - Converts lower case values to uppercase, I've had trouble running taxonomy assignment with upper case values
+#              - Removes sequence entries containing "-" values, they also don't play nice with QIIME2
+
+# Run download script
+sbatch scripts/eukaryomedl.sh
+
+
+#------------------------ Subset minimal database -----------------------------
+
+# The EUKARYOME database is BIG, and performing phylogenetics on all of it is best left to the people who maintain it!
+# I will take a subset to make a tree to decorate with our ASV sequences
+# We subset ONE ENTRY for each unique genus/species combination to construct a backbone phylogeny
+
+# Run subset script
+sbatch scripts/eukaryomesubset.sh
+
+#--------------------------- Align sequences ----------------------------------
+
+# I align my sequences using the E-INS-i option in mafft
+# This matches the most up-to-date AMF taxonomy papers (e.g., doi.org/10.3389/fmicb.2024.1320014)
+# This is moreso used for 45S alignments, as it allows large gaps for unalignable regions (ITS!), but it is also quite a sensitive alignment option
+
+sbatch scripts/alignseqs_mafft_backbonecustom.sh
+
+#----------------------- Backbone tree construction ---------------------------
+
