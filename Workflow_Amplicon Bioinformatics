@@ -1,4 +1,50 @@
 
+#------------------------------------------------------------------------------------------
+#---------------------------------- Required programs -------------------------------------
+#------------------------------------------------------------------------------------------
+
+# These programs are accessed throught the UGA GACRC resource high performance cluster (HPC)
+
+#------------------------------------- HPC programs ---------------------------------------
+
+# DSGSGSD
+
+#-------------------------------------- R packaged ----------------------------------------
+
+# sdgadg
+
+#------------------------------------------------------------------------------------------
+#------------------------------- HPC Directory Structure -------------------------------------
+#------------------------------------------------------------------------------------------
+
+# Almost all directories have sub-directories created as part of the pipeline based on user defined inputs
+# I did this to account for the fact that sometimes I process multiple amplicon datasets, and it's nice to be able to run them all together in one master directory at the same time
+
+# Directory: scripts
+mkdir ./scripts # Holds all of the scripts written for this workflow
+
+# Directory: trimmed
+mkdir -p ./trimmed # Holds cutadapt trimmed sequences
+
+# Directory: filtered
+mkdir -p ./filtered # Holds quality filtered sequence outputs from the dada2 pipeline 'FilterandTrim' command
+
+# q2files #Holds trained taxonomy classifier and outputs from 'asvfilter.sh' and 'taxonomy_qiime2.sh'
+mkdir -p ./q2files
+
+#
+mkdir -p dada2output
+# Sub-directories are made as part of...
+
+mkdir -p readcounts
+
+mkdir -p targetcuration
+
+mkdir -p fastqcoutput
+
+mkdir -p eukaryome # Holds various eukaryome databases downloaded through 'eukaryomedl.sh'
+
+mkdir -p finaloutputs # Holds all final data relevant to downstream analysis
 
 #------------------------------------------------------------------------------------------
 #------------------------- Cutadapt trimming of primer sequences --------------------------
