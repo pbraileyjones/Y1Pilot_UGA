@@ -1,10 +1,6 @@
-# PBJ Edits Aug2023
-# Added 'pool = TRUE' condition to the dada2() step
-# This is useful if you want to report alpha diversity estimates- without pooling ALL single-sample singletons will be removed rather than whole-dataset singletons
-# In the 'mergePairs' function I changed the approach to merge paired ends instead of concatenating them
-
-# PBJ Edits July 2024
-# Changed how filtered and trimmed file names are given... I am removing anything that changes the base name because they are already in a different directory
+# This pipeline is for when we have unrealistically large datasets that:
+#        -A) Running anything in pooled mode is unfeasible even on our HPC (and more importantly our research question does not REQUIRE this for a fine-scale ability to assess uncertainty in richness estimates)
+#        -B) Processes must be run parralel
 
 ####### Load required packages #######
 
@@ -116,69 +112,39 @@ print(" Read 2...")
 errR <- learnErrors(fastqRs.filtered, multithread=TRUE)
 saveRDS(errR,file=paste0(wdPath, paste0("/dada2output/", outdir.value,"/", "errR", dataset.value,  run.value, ".RDS"))) # save intermediate file
 
-print("Carrying out sequence dereplication...")
-
-# Dereplicate:
-derepFs <- derepFastq(fastqFs.filtered, verbose=TRUE)
-saveRDS(derepFs,file=paste0(wdPath, paste0("/dada2output/", outdir.value,"/", "derepFs", dataset.value,  run.value, ".RDS"))) # save intermediate file
-derepRs <- derepFastq(fastqRs.filtered, verbose=TRUE)
-saveRDS(derepFs,file=paste0(wdPath, paste0("/dada2output/", outdir.value,"/", "derepRs", dataset.value,  run.value, ".RDS"))) # save intermediate file
-
-# Rename derep-class objects:
-names(derepFs) <- sample.names
-names(derepRs) <- sample.names
-
-print("Denoising dereplicated sequences...")
-
-print("Read 1...")
-
-# Apply the core sample inference algorithm to the dereplicated data.
-if (pool.value == "true"){
-
-dadaFs <- dada(derepFs, err=errF, multithread=TRUE, pool = TRUE)
-saveRDS(dadaFs,file=paste0(wdPath, paste0("/dada2output/", outdir.value,"/", "dadaFs", dataset.value,  run.value, ".RDS"))) # save intermediate file
-
-print("Read 2...")
-
-dadaRs <- dada(derepRs, err=errR, multithread=TRUE, pool = TRUE)
-saveRDS(dadaRs,file=paste0(wdPath, paste0("/dada2output/", outdir.value,"/", "dadaRs", dataset.value,  run.value, ".RDS"))) # save intermediate file
-
-} else {
-
-
-
-dadaFs <- dada(derepFs, err=errF, multithread=TRUE, pool = FALSE)
-saveRDS(dadaFs,file=paste0(wdPath, paste0("/dada2output/", outdir.value,"/", "dadaFs", dataset.value,  run.value, ".RDS"))) # save intermediate file
-
-print("Read 2...")
-
-dadaRs <- dada(derepRs, err=errR, multithread=TRUE, pool = FALSE)
-saveRDS(dadaRs,file=paste0(wdPath, paste0("/dada2output/", outdir.value,"/", "dadaRs", dataset.value,  run.value, ".RDS"))) # save intermediate file
-
-}
-
-print("Merging / concatenating read pairs...")
-
-
-####### Merge paired-end reads by concatenating #######
-# Merge the paired end reads, just concatenate
-# instead of looking for overlapping regions.
-# Will just stick both ends together with NNNNNNNNNN between.
+print("Carrying out sequence dereplication, denoising and merging on a per sample basis...")
 
 if (concat.value == "true"){
 
-    mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, minOverlap = 12, justConcatenate = TRUE, verbose=TRUE)
-    saveRDS(mergers,file=paste0(wdPath, paste("/dada2output/", outdir.value,"/", "mergers", dataset.value,  run.value, ".RDS",sep="")))
+for(sam in sample.names) {
+  cat("Processing:", sam, "\n")
+    derepF <- derepFastq(fastqFs.filtered[[sam]])
+    ddF <- dada(derepF, err=errF, multithread=TRUE)
+    derepR <- derepFastq(fastqRs.filtered[[sam]])
+    ddR <- dada(derepR, err=errR, multithread=TRUE)
+    merger <- mergePairs(ddF, derepF, ddR, derepR,
+    justConcatenate = TRUE, verbose=TRUE)
+    mergers[[sam]] <- merger
+}
+# Save merger file output
+saveRDS(mergers,file=paste0(wdPath, paste("/dada2output/", outdir.value,"/", "mergers", dataset.value,  run.value, ".RDS",sep="")))
 
 } else {
 
-   mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, minOverlap = 12, justConcatenate = FALSE, verbose=TRUE)
-   saveRDS(mergers,file=paste0(wdPath, paste("/dada2output/", outdir.value,"/", "mergers", dataset.value,  run.value, ".RDS",sep="")))
+for(sam in sample.names) {
+  cat("Processing:", sam, "\n")
+    derepF <- derepFastq(fastqFs.filtered[[sam]])
+    ddF <- dada(derepF, err=errF, multithread=TRUE)
+    derepR <- derepFastq(fastqRs.filtered[[sam]])
+    ddR <- dada(derepR, err=errR, multithread=TRUE)
+    merger <- mergePairs(ddF, derepF, ddR, derepR,
+    minOverlap = 12, justConcatenate = FALSE, verbose=TRUE)
+    mergers[[sam]] <- merger
+}
+# Save merger file output
+saveRDS(mergers,file=paste0(wdPath, paste("/dada2output/", outdir.value,"/", "mergers", dataset.value,  run.value, ".RDS",sep="")))
 
 }
-
-
-rm(derepFs,derepRs)   # clean up to save memory
 
 print("Constructing sequence table...")
 
@@ -188,9 +154,27 @@ seqtab <- makeSequenceTable(mergers)
 print("Performing de novo chimera removal...")
 
 #######  Remove Chimeras #######
-seqtab.nochim <- removeBimeraDenovo(
-  seqtab, method="consensus", multithread=TRUE, verbose=TRUE
-)
+
+# For my sequence data- the file is too big and this makes it computationally impossible to perform chimera detection... We will split it.
+
+# Assume 'seqtab' is your sequence table
+n_splits <- 50  # Number of splits
+seqs <- colnames(seqtab)  # Extract sequence column names
+seq_chunks <- split(seqs, cut(seq_along(seqs), n_splits, labels = FALSE))  # Split into 10 chunks
+
+# Function to process each subset
+process_chunk <- function(seq_subset) {
+  if (length(seq_subset) == 0) return(NULL)  # Handle empty case
+  sub_table <- mergers[, seq_subset, drop = FALSE]  # Extract chunk
+  sub_table <- removeBimeraDenovo(sub_table, method = "consensus", multithread = TRUE, verbose = TRUE)  # Bimera removal
+  return(sub_table)
+}
+
+# Apply function to all chunks
+filtered_chunks <- lapply(seq_chunks, process_chunk)
+
+# Combine the filtered tables
+seqtab.nochim <- do.call(cbind, filtered_chunks)
 
 ####### Export nochim sequence table for subsequent merging
 saveRDS(seqtab.nochim,file=paste0(wdPath, paste("/dada2output/", outdir.value,"/", "ASVtab.nochim", dataset.value,  run.value, ".RDS",sep="")))
@@ -204,8 +188,8 @@ getN <- function(x) {
 
 track <- cbind(
   filterOutput,
-  sapply(dadaFs, getN),
-  sapply(dadaRs, getN),
+  #sapply(dadaFs, getN), # not preserved in this version
+  #sapply(dadaRs, getN), # not preserved in this version
   sapply(mergers, getN),
   rowSums(seqtab.nochim)
 )
@@ -213,8 +197,8 @@ track <- cbind(
 colnames(track) <- c(
   "input",
   "filtered",
-  "denoisedF",
-  "denoisedR",
+  #"denoisedF",
+  #"denoisedR",
   "merged",
   "nonchim")
 rownames(track) <- sample.names
