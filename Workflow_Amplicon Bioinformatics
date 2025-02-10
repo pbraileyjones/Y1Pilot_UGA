@@ -202,6 +202,24 @@ sbatch --export=outdir=amflsu,directoryinput=amflsu,otulevel=asv,dataset=amflsu,
 # Perform filtering based on taxonomic assignment and relabeling
 sbatch --export=kingdomfilter=Fungi,phylumfilter=Glomeromycota,directoryinput=amflsu,otulevel=asv,dataset=amflsu,curation=amfblast,refdbID=eukaryome,phylumunclassifiedfilter=FALSE ./scripts/taxonomyfilter_qiime2.sh
 
-#------------------------------ Phylogenetic tree decoration --------------------------------------
+#------------------------- Align sequences against backbone alignment ------------------------------
 
+# We have previously created a backbone phylogeny based on EUKARYOME lsu sequences
+# See: Workflow_BackbonePhylogeny.sh for details
+# I have copied this output into our working directory
 
+# Align sequences against those used to construct the backbone phylogeny
+sbatch --export=otulevel=asv,dataset=amflsu,backbonefile=eukaryome_backbonephylogeny/eukaryome/lsu/General_EUK_LSU_v1.9.3_glomeromycota_backbonesubset_headerreformat_outgroupcat.fasta,curation=amfblast scripts/alignseqsfinal.sh
+
+#--------------------- Decorate backbone phylogeny with experimental sequences ---------------------
+
+sbatch --export=dataset=amflsu,otulevel=asv,curation=,backbonetree=BACKBONE scripts/RAxMLtree.sh
+
+#------------------------- Pull everything out and do some manual editing --------------------------
+
+# Hate to do this to you but now comes the 'subjective' part of phylogeny-based taxonomic determination that doesn't require / allow devolvement to a reproducible code-based response...
+# One day we'll have hundreds of representative seqs for each unique species / genus combination from which we can define edges to determine where our amplicon sequences fall between, today is not that day
+# This is still better than the hundreds of spurious sequences defined as some kind of glomus in NCBI so let me live
+
+# Visualise tree: iTol https://itol.embl.de
+# I try to operate by some clear rules on deciding...
